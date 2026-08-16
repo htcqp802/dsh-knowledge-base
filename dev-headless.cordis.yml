@@ -1,0 +1,16 @@
+# dsh-knowledge-base 开发 overlay（headless：不含 web 端点）
+# 验证 host 工具（kb_query / kb_import / kb_list / kb_update / kb_delete）。
+#
+# 用法：先运行 `node scripts/link-official-deps.mjs` 链接官方 @deepseek-ai 包，
+# 并把本插件目录链接进目标 profile 的 node_modules（或用 `dsh plugin add` 安装），
+# 然后（在装有 dsh 的官方 checkout 下）：
+#   DSH_HOME=$PWD/.dsh-home DSH_TELEMETRY_DISABLED=1 \
+#     dsh --profile headless --patch ./dev-headless.cordis.yml \
+#     "用 kb_import 导入 /tmp/测试.md，然后 kb_query 检索 '关键词'"
+
+- insert:
+    - id: knowledge-base
+      name: 'dsh-knowledge-base'
+      config:
+        # 默认不预置分类（通用插件）；按需在 UI 中新建目录，或在此配置。
+        categories: []

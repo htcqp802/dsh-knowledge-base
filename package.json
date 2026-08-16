@@ -1,0 +1,80 @@
+{
+  "name": "dsh-knowledge-base",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A general-purpose knowledge base plugin for DeepSeek Harness (DSH): import documents (md/txt/json/yml/docx/pdf), organize them in folders, and search with FTS5. 通用知识库插件：文件导入、目录化管理、全文检索、知识库管理 UI。",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "plugin",
+    "knowledge-base",
+    "kb",
+    "rag",
+    "retrieval",
+    "fts5",
+    "bm25",
+    "pdf",
+    "document-management",
+    "file-import",
+    "agent",
+    "llm",
+    "ai",
+    "知识库"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/htcqp802/dsh-knowledge-base"
+  },
+  "main": "src/index.ts",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./web": "./src/web.ts",
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["src", "lib", "LICENSE", "README.md", "AGENTS.md"],
+  "engines": {
+    "node": ">=22.5"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ],
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json && tsdown -c tsdown.config.ts",
+    "bundle": "tsdown -c tsdown.config.ts",
+    "watch": "tsdown -c tsdown.config.ts --watch"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-client-locale": "*",
+    "@deepseek-ai/dsh-client-runtime": "*",
+    "@deepseek-ai/dsh-client-ui-conversation": "*",
+    "@deepseek-ai/dsh-client-ui-slots": "*",
+    "@deepseek-ai/dsh-tools": "*",
+    "@deepseek-ai/schemastery": "*",
+    "react": "^18.2.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-client-web": "*",
+    "tsdown": "*"
+  },
+  "dependencies": {
+    "pdfjs-dist": "^6.2.108"
+  }
+}

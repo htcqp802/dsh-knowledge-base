@@ -1,0 +1,9 @@
+# dsh-knowledge-base bundle patch — 安装进 profile 时使用（name 为包名）。
+# 开发期请使用套件根目录的 dev.cordis.yml（相对路径引用 src）。
+- insert:
+    - id: knowledge-base
+      name: 'dsh-knowledge-base'
+      config:
+        # 分类体系：默认不预置任何分类（通用插件，按需在配置或 UI 中创建）。
+        # 未指定分类的条目归入"未分类"。
+        categories: []
