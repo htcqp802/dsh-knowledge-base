@@ -1,6 +1,6 @@
 {
   "name": "dsh-knowledge-base",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "description": "A general-purpose knowledge base plugin for DeepSeek Harness (DSH): import documents (md/txt/json/yml/docx/pdf), organize them in folders, and search with FTS5. 通用知识库插件：文件导入、目录化管理、全文检索、知识库管理 UI。",
   "keywords": [
@@ -41,8 +41,14 @@
   "files": [
     "src",
     "lib",
+    "cordis.patch.yml",
+    "dev.cordis.yml",
+    "dev-headless.cordis.yml",
     "LICENSE",
     "README.md",
+    "README.zh.md",
+    "README.es.md",
+    "README.ja.md",
     "AGENTS.md"
   ],
   "engines": {
