@@ -32,15 +32,6 @@ interface ImportResult {
   categories: string[]
 }
 
-/** 文件清单行（/api/kb/files）。 */
-interface FileRow {
-  source: string
-  category: string
-  count: number
-  updatedAt: string
-  summary: string
-}
-
 /** AI 分类建议（/api/kb/classify）。 */
 interface ClassifySuggestion {
   source: string
@@ -120,11 +111,6 @@ const smallBtn: React.CSSProperties = {
 const primaryBtn: React.CSSProperties = {
   border: '1px solid #2563eb', background: '#2563eb', color: '#fff',
   borderRadius: 6, padding: '2px 8px', fontSize: 11.5, cursor: 'pointer',
-}
-
-const catSelect: React.CSSProperties = {
-  border: '1px solid #d1d5db', borderRadius: 6, padding: '3px 6px',
-  fontSize: 12, color: '#2563eb', background: '#fff', cursor: 'pointer', flexShrink: 0,
 }
 
 const renameInput: React.CSSProperties = {
@@ -225,12 +211,6 @@ export function KnowledgePanel(_props: ConvViewProps): ReactNode {
   const [creatingCategory, setCreatingCategory] = useState(false)
   const [query, setQuery] = useState('')
   const [searchResults, setSearchResults] = useState<KbEntry[] | null>(null)
-  // 视图模式：dir=目录浏览；files=全部文件清单
-  const [viewMode, setViewMode] = useState<'dir' | 'files'>('dir')
-  // 全部文件清单
-  const [files, setFiles] = useState<FileRow[]>([])
-  const [fileFilter, setFileFilter] = useState('')
-  const [fileCategory, setFileCategory] = useState('')
   // AI 整理
   const [classifying, setClassifying] = useState(false)
   const [suggestions, setSuggestions] = useState<ClassifySuggestion[] | null>(null)
@@ -320,17 +300,6 @@ export function KnowledgePanel(_props: ConvViewProps): ReactNode {
     }
   }, [importFile, refresh])
 
-  /** 加载全部文件清单。 */
-  const loadFiles = useCallback(async () => {
-    try {
-      const data = await getJson<{ files: FileRow[]; categories: string[] }>('/api/kb/files')
-      setFiles(data.files)
-      if (data.categories.length > 0) setCategories(data.categories)
-    } catch (error) {
-      console.error('knowledge-base: files failed', error)
-    }
-  }, [])
-
   /** 触发 AI 整理：对未分类文件生成建议。 */
   const runClassify = useCallback(async () => {
     setClassifying(true)
@@ -359,9 +328,9 @@ export function KnowledgePanel(_props: ConvViewProps): ReactNode {
       const s = suggestions[i]
       if (s === undefined || s.error !== undefined) continue
       try {
-        const current = files.find((f) => f.source === s.source)
+        const currentCat = entries.find((e) => e.source === s.source)?.category
         // 分类变化 → 移动
-        if (current !== undefined && s.category !== undefined && s.category !== '' && s.category !== current.category) {
+        if (currentCat !== undefined && s.category !== undefined && s.category !== '' && s.category !== currentCat) {
           await postJson('/api/kb/move-file', { source: s.source, category: s.category })
         }
         // 文件名变化 → 重命名（改名后 source 变了，后续引用用新名）
@@ -376,9 +345,9 @@ export function KnowledgePanel(_props: ConvViewProps): ReactNode {
       }
     }
     setSuggestions(null)
-    await Promise.all([refresh(), loadFiles()])
+    await refresh()
     if (failed > 0) window.alert(`整理完成：成功 ${ok} 个，失败 ${failed} 个`)
-  }, [accepted, suggestions, files, refresh, loadFiles])
+  }, [accepted, suggestions, entries, refresh])
 
   /** 提交重命名（分类或文件）。分类改名后回根视图；文件改名留在当前分类视图。 */
   const submitRename = useCallback(async (value: string) => {
@@ -454,13 +423,6 @@ export function KnowledgePanel(_props: ConvViewProps): ReactNode {
   }, [query])
 
   const folders = buildFolders(entries)
-  // 文件清单：按搜索词/分类过滤
-  const filteredFiles = files.filter((f) => {
-    const q = fileFilter.trim().toLowerCase()
-    if (q !== '' && !f.source.toLowerCase().includes(q) && !f.summary.toLowerCase().includes(q)) return false
-    if (fileCategory !== '' && f.category !== fileCategory) return false
-    return true
-  })
   // 补齐配置中存在但尚无条目的空分类，并按配置顺序排列；不在配置中的分类（如重命名产生）追加在后。
   const fullFolders: FolderInfo[] = []
   for (const category of categories) {
@@ -518,49 +480,18 @@ export function KnowledgePanel(_props: ConvViewProps): ReactNode {
           </div>
         )}
 
-        {/* 视图切换 */}
-        <div style={{ display: 'flex', gap: 8, marginTop: 12, borderTop: '1px solid #f3f4f6', paddingTop: 12 }}>
-          <button
-            style={viewMode === 'dir' ? primaryBtn : smallBtn}
-            onClick={() => setViewMode('dir')}
-          >
-            📂 目录
+        {/* AI 整理入口 */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 12, borderTop: '1px solid #f3f4f6', paddingTop: 12, alignItems: 'center' }}>
+          <button style={primaryButton} onClick={() => void runClassify()} disabled={classifying}>
+            {classifying ? 'AI 分析中…' : '🤖 AI 整理'}
           </button>
-          <button
-            style={viewMode === 'files' ? primaryBtn : smallBtn}
-            onClick={() => { setViewMode('files'); void loadFiles() }}
-          >
-            📋 全部文件{files.length > 0 ? `（${files.length}）` : ''}
-          </button>
+          <span style={{ fontSize: 11.5, color: '#9ca3af' }}>对未分类文件自动建议分类 / 文件名 / 标签，确认后应用</span>
         </div>
       </div>
 
-      {viewMode === 'files' ? (
-        /* ═══ 全部文件视图 ═══ */
-        <div style={card}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
-            <input
-              style={{ ...inputStyle, flex: '1 1 200px' }}
-              placeholder="按文件名/内容摘要过滤…"
-              value={fileFilter}
-              onChange={(e) => setFileFilter(e.target.value)}
-            />
-            <select
-              style={catSelect}
-              value={fileCategory}
-              onChange={(e) => setFileCategory(e.target.value)}
-            >
-              <option value="">全部分类</option>
-              {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <button style={primaryButton} onClick={() => void runClassify()} disabled={classifying}>
-              {classifying ? 'AI 分析中…' : '🤖 AI 整理'}
-            </button>
-          </div>
-
-          {/* AI 建议面板 */}
-          {suggestions !== null && (
-            <div style={{ border: '1px solid #bfdbfe', borderRadius: 10, padding: 12, marginBottom: 12, background: '#eff6ff' }}>
+      {/* AI 建议面板 */}
+      {suggestions !== null && (
+        <div style={{ ...card, border: '1px solid #bfdbfe', background: '#eff6ff', marginBottom: 14 }}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
                 🤖 AI 建议（只建议，不改动；勾选后点"应用"）
               </div>
@@ -598,44 +529,9 @@ export function KnowledgePanel(_props: ConvViewProps): ReactNode {
                 <button style={primaryBtn} onClick={() => void applySuggestions()}>应用选中（{accepted.size}）</button>
                 <button style={smallBtn} onClick={() => setSuggestions(null)}>取消</button>
               </div>
-            </div>
-          )}
-
-          {/* 文件表格 */}
-          <div style={{ fontSize: 12.5 }}>
-            {filteredFiles.length === 0 && <p style={{ ...sub, padding: '8px 0' }}>没有符合条件的文件。</p>}
-            {filteredFiles.map((f) => (
-              <div key={f.source} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 6px', borderTop: '1px solid #f3f4f6' }}>
-                <div style={{ flex: '1 1 30%', minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📄 {f.source}</div>
-                  <div style={{ color: '#9ca3af', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {f.summary || '(无文本，可能为扫描版)'}
-                  </div>
-                </div>
-                <span style={{ fontSize: 11.5, color: '#9ca3af', flexShrink: 0 }}>{f.count} 块</span>
-                <select
-                  style={catSelect}
-                  value={f.category}
-                  onChange={(e) => {
-                    const target = e.target.value
-                    if (target === f.category) return
-                    void postJson('/api/kb/move-file', { source: f.source, category: target })
-                      .then(() => Promise.all([refresh(), loadFiles()]))
-                      .catch((err) => window.alert(`移动失败：${err instanceof Error ? err.message : String(err)}`))
-                  }}
-                >
-                  {categories.includes(f.category) ? null : <option value={f.category}>{f.category}</option>}
-                  {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-                <span style={{ fontSize: 11, color: '#9ca3af', flexShrink: 0 }}>{f.updatedAt.slice(0, 16)}</span>
-                <button style={smallBtn} onClick={() => setEditing({ kind: 'file', value: f.source })}>✏️</button>
-                <button style={{ ...smallBtn, color: '#dc2626', borderColor: '#fecaca' }} onClick={() => void deleteFile(f.source)}>🗑</button>
-              </div>
-            ))}
-          </div>
         </div>
-      ) : (
-        <>
+      )}
+
       {/* 检索 */}
       <div style={{ ...card, marginBottom: 14 }}>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -857,8 +753,6 @@ export function KnowledgePanel(_props: ConvViewProps): ReactNode {
           </>
         )}
       </div>
-        </>
-      )}
     </div>
   )
 }
