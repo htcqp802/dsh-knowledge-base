@@ -1,6 +1,6 @@
 {
   "name": "dsh-knowledge-base",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "type": "module",
   "description": "A general-purpose knowledge base plugin for DeepSeek Harness (DSH): import documents (md/txt/json/yml/docx/pdf), organize them in folders, and search with FTS5. 通用知识库插件：文件导入、目录化管理、全文检索、知识库管理 UI。",
   "keywords": [
@@ -27,11 +27,17 @@
     "type": "git",
     "url": "https://github.com/htcqp802/dsh-knowledge-base"
   },
-  "main": "src/index.ts",
+  "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./web": "./src/web.ts",
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./web": {
+      "types": "./lib/types/web.d.ts",
+      "default": "./lib/web.js"
+    },
     "./client": {
       "types": "./lib/types/client/index.d.ts",
       "default": "./lib/client.js"
