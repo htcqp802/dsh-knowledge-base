@@ -2,7 +2,7 @@
 # 前置：在 https://www.npmjs.com/settings/<用户名>/tokens → Trusted Publishers
 # 添加：包名 dsh-knowledge-base / GitHub 仓库 htcqp802/dsh-knowledge-base /
 #      Workflow name 必须与本文件文件名一致：publish
-name: publish
+name: publish.yml
 on:
   push:
     tags: ['v*']
