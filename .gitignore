@@ -1,7 +1,8 @@
-# ---- 依赖与构建产物 ----
+# ---- 依赖 ----
 node_modules/
-lib/
 *.tsbuildinfo
+# 注意：lib/（构建产物）随仓库提交——CI 的 Trusted Publishing 直接发布 lib，
+# 避免在 CI 里重装 @deepseek-ai 依赖（npm 仅有 rc 版，与本地 checkout 不一致）。
 
 # ---- 本地运行数据（绝不提交）----
 .dsh-home/

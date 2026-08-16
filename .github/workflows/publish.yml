@@ -1,0 +1,22 @@
+# Trusted Publishing（OIDC）：打 tag 时自动发布到 npm，无需任何密钥。
+# 前置：在 https://www.npmjs.com/settings/<用户名>/tokens → Trusted Publishers
+# 添加：包名 dsh-knowledge-base / GitHub 仓库 htcqp802/dsh-knowledge-base /
+#      Workflow name 必须与本文件文件名一致：publish
+name: publish
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      # 发布（OIDC 自动认证；lib/ 已随仓库提交，无需安装依赖/构建）
+      - run: npm publish --provenance --access public
