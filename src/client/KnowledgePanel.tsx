@@ -192,8 +192,8 @@ export function KnowledgePanel(_props: ConvViewProps): ReactNode {
   const [entries, setEntries] = useState<KbEntry[]>([])
   const [categories, setCategories] = useState<string[]>([])
   const [importing, setImporting] = useState(false)
+  const [importingLabel, setImportingLabel] = useState('导入中…')
   const [lastImport, setLastImport] = useState<ImportResult | null>(null)
-  const [dragOver, setDragOver] = useState(false)
   const [view, setView] = useState<View>({ kind: 'root' })
   const [editing, setEditing] = useState<Editing>(null)
   const [moving, setMoving] = useState<Moving>(null)
@@ -252,21 +252,40 @@ export function KnowledgePanel(_props: ConvViewProps): ReactNode {
     }
   }, [refresh])
 
-  const importFile = useCallback(async (file: File) => {
+  const importFile = useCallback(async (file: File): Promise<ImportResult> => {
+    const contentBase64 = await fileToBase64(file)
+    const result = await postJson<ImportResult>('/api/kb/import', { name: file.name, contentBase64 })
+    return result
+  }, [])
+
+  /** 批量导入：逐个上传（顺序执行，避免并发打爆端点），显示进度。 */
+  const importFiles = useCallback(async (files: File[]) => {
+    if (files.length === 0) return
     setImporting(true)
-    try {
-      const contentBase64 = await fileToBase64(file)
-      const result = await postJson<ImportResult>('/api/kb/import', { name: file.name, contentBase64 })
-      setLastImport(result)
-      setView({ kind: 'root' })
-      await refresh()
-    } catch (error) {
-      console.error('knowledge-base: import failed', error)
-      window.alert(`导入失败：${error instanceof Error ? error.message : String(error)}`)
-    } finally {
-      setImporting(false)
+    const total = files.length
+    let done = 0
+    let failed = 0
+    let lastOk: ImportResult | null = null
+    for (const file of files) {
+      try {
+        lastOk = await importFile(file)
+      } catch (error) {
+        failed++
+        console.error(`knowledge-base: import failed: ${file.name}`, error)
+      }
+      done++
+      setImportingLabel(`导入中（${done}/${total}）`)
     }
-  }, [refresh])
+    setImporting(false)
+    if (lastOk !== null) {
+      setLastImport(lastOk)
+      setView({ kind: 'root' })
+    }
+    await refresh()
+    if (failed > 0) {
+      window.alert(`导入完成：成功 ${total - failed}/${total}，失败 ${failed} 个文件`)
+    }
+  }, [importFile, refresh])
 
   /** 提交重命名（分类或文件）。分类改名后回根视图；文件改名留在当前分类视图。 */
   const submitRename = useCallback(async (value: string) => {
@@ -379,23 +398,16 @@ export function KnowledgePanel(_props: ConvViewProps): ReactNode {
         <p style={sub}>支持 md / txt / json / yml / docx / pdf，无大小限制；文件按章节切块，同名重导 = 覆盖更新。</p>
 
         <div
-          style={{ ...dropZone, borderColor: dragOver ? '#2563eb' : '#cbd5e1', background: dragOver ? '#eff4ff' : '#f9fafb' }}
+          style={dropZone}
           onClick={() => fileInput.current?.click()}
-          onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={(e) => {
-            e.preventDefault(); setDragOver(false)
-            const file = e.dataTransfer.files[0]
-            if (file !== undefined) void importFile(file)
-          }}
         >
-          {importing ? '导入中…' : '拖拽文件到这里，或点击选择文件'}
+          {importing ? importingLabel : '点击选择文件（可多选）'}
         </div>
         <input
-          ref={fileInput} type="file" style={{ display: 'none' }}
+          ref={fileInput} type="file" multiple style={{ display: 'none' }}
           onChange={(e) => {
-            const file = e.target.files?.[0]
-            if (file !== undefined) void importFile(file)
+            const files = Array.from(e.target.files ?? [])
+            if (files.length > 0) void importFiles(files)
             e.target.value = ''
           }}
         />
