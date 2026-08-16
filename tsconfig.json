@@ -4,18 +4,40 @@
     "rootDir": "src",
     "outDir": "lib/types",
     "noEmit": false,
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
-  "include": ["src"],
+  "include": [
+    "src"
+  ],
   "references": [
-    { "path": "/Users/qinpu/Projects/deepseek-harness/vendor/cordis" },
-    { "path": "/Users/qinpu/Projects/deepseek-harness/packages/client/locale" },
-    { "path": "/Users/qinpu/Projects/deepseek-harness/packages/client/runtime" },
-    { "path": "/Users/qinpu/Projects/deepseek-harness/packages/client/ui-conversation" },
-    { "path": "/Users/qinpu/Projects/deepseek-harness/packages/client/ui-slots" },
-    { "path": "/Users/qinpu/Projects/deepseek-harness/packages/client/web-react" },
-    { "path": "/Users/qinpu/Projects/deepseek-harness/packages/client/ui-primitives" },
-    { "path": "/Users/qinpu/Projects/deepseek-harness/packages/core/tools" },
-    { "path": "/Users/qinpu/Projects/deepseek-harness/vendor/schemastery" }
+    {
+      "path": "/Users/qinpu/Projects/deepseek-harness/vendor/cordis"
+    },
+    {
+      "path": "/Users/qinpu/Projects/deepseek-harness/packages/client/locale"
+    },
+    {
+      "path": "/Users/qinpu/Projects/deepseek-harness/packages/client/runtime"
+    },
+    {
+      "path": "/Users/qinpu/Projects/deepseek-harness/packages/client/ui-conversation"
+    },
+    {
+      "path": "/Users/qinpu/Projects/deepseek-harness/packages/client/ui-slots"
+    },
+    {
+      "path": "/Users/qinpu/Projects/deepseek-harness/packages/client/web-react"
+    },
+    {
+      "path": "/Users/qinpu/Projects/deepseek-harness/packages/client/ui-primitives"
+    },
+    {
+      "path": "/Users/qinpu/Projects/deepseek-harness/packages/core/tools"
+    },
+    {
+      "path": "/Users/qinpu/Projects/deepseek-harness/vendor/schemastery"
+    }
   ]
 }

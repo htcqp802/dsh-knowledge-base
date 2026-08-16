@@ -13,6 +13,7 @@ import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 // Type-only：拉入 locale 插件对 Context 的合并（ctx.locale）。
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
+// Type-only：拉入 ui-sidebar 对 SlotMap 的声明（sidebar.footer.action）。
 import { KnowledgePanel } from './KnowledgePanel.tsx'
 
 /** 本插件拥有的字典命名空间与键集合。 */
@@ -44,4 +45,5 @@ export function apply(ctx: ClientContext): void {
     locale: NS,
     label: () => t('view.knowledgeBase'),
   }, KnowledgePanel))
+
 }
