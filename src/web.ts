@@ -39,7 +39,7 @@ export const Config: Schema<Config> = Schema.object({
   categories: Schema.array(String).default([]),
 })
 
-export const inject = ['tools', 'webServer']
+export const inject = ['tools', 'webServer', 'llm', 'agentDefaultModel']
 
 export function apply(ctx: Context, config: Config): (() => void) | void {
   const db = openKb()
@@ -285,7 +285,62 @@ export function apply(ctx: Context, config: Config): (() => void) | void {
     },
   })
 
-    // cordis dispose 钩子：插件卸载时关闭数据库句柄。
+    // ── 文件清单（全部文件聚合，供「全部文件」视图）────────────────────────
+  webServer.register({
+    kind: 'exact',
+    path: '/api/kb/files',
+    handler: async (_req: IncomingMessage, res: ServerResponse) => {
+      const rows = db.prepare(
+        'SELECT source, category, COUNT(*) AS n, MAX(updated_at) AS t FROM kb GROUP BY source ORDER BY t DESC',
+      ).all() as Array<{ source: string; category: string; n: number; t: string }>
+      const files = rows.map((r) => {
+        const first = db.prepare('SELECT summary FROM kb WHERE source = ? ORDER BY id LIMIT 1').get(r.source) as { summary: string } | undefined
+        return { source: r.source, category: r.category, count: r.n, updatedAt: r.t, summary: first?.summary ?? '' }
+      })
+      sendJson(res, 200, { files, categories: allCategories(db, config.categories) })
+    },
+  })
+
+  // ── AI 分类建议（LLM 读内容 → 建议分类/改名/标签；只建议不改动）────────
+  webServer.register({
+    kind: 'exact',
+    path: '/api/kb/classify',
+    handler: async (req: IncomingMessage, res: ServerResponse) => {
+      try {
+        const body = await readJsonBody(req)
+        const sources = Array.isArray(body.sources) ? body.sources.map(String) : undefined
+        const targets: Array<{ source: string }> = sources !== undefined
+          ? sources.map((source) => ({ source }))
+          : db.prepare(
+              "SELECT source FROM kb GROUP BY source HAVING category = '未分类' ORDER BY MAX(updated_at) DESC LIMIT 20",
+            ).all() as Array<{ source: string }>
+        const llm = ctx.get('llm') as unknown as LlmLike | undefined
+        // agentDefaultModel 是 Service 实例，需调用 currentSelection() 取 provider/model。
+        const defaultModelSvc = ctx.get('agentDefaultModel') as unknown as { currentSelection?: () => DefaultModelLike } | undefined
+        const defaultModel = defaultModelSvc?.currentSelection?.()
+        const categories = allCategories(db, config.categories)
+        const suggestions: Array<Record<string, unknown>> = []
+        for (const target of targets) {
+          const content = collectFileContent(db, target.source)
+          if (content.length < 20) {
+            suggestions.push({ source: target.source, error: '文件无有效文本（可能为扫描版），需 OCR 后才能分析' })
+            continue
+          }
+          try {
+            const suggestion = await classifyWithLlm(llm, defaultModel, target.source, content, categories)
+            suggestions.push(suggestion)
+          } catch (error) {
+            suggestions.push({ source: target.source, error: `AI 分析失败：${error instanceof Error ? error.message : String(error)}` })
+          }
+        }
+        return sendJson(res, 200, { suggestions })
+      } catch (error) {
+        return sendJson(res, 400, { error: error instanceof Error ? error.message : String(error) })
+      }
+    },
+  })
+
+  // cordis dispose 钩子：插件卸载时关闭数据库句柄。
   return (): void => {
     db.close()
   }
@@ -342,4 +397,65 @@ function allCategories(db: import('node:sqlite').DatabaseSync, configCategories:
   const rows = db.prepare('SELECT DISTINCT category FROM kb').all() as Array<{ category: string }>
   for (const row of rows) set.add(row.category)
   return [...set]
+}
+
+/** 收集某文件的可读内容（前若干条切块的 payload，截断）。 */
+function collectFileContent(db: import('node:sqlite').DatabaseSync, source: string): string {
+  const rows = db.prepare('SELECT payload FROM kb WHERE source = ? ORDER BY id LIMIT 5').all(source) as Array<{ payload: string }>
+  return rows.map((r) => r.payload).join('\n').slice(0, 3000)
+}
+
+/** LLM 最小调用面（避免引入完整类型依赖）。 */
+interface LlmLike {
+  prepareCall(config: { provider: string; model: string; maxTokens?: number }): Promise<{
+    /** 解析后的完整 call config（含 adapter 默认值）；stream 必须与它完全一致。 */
+    config: Record<string, unknown>
+    stream(options: {
+      provider?: string
+      model?: string
+      temperature?: number
+      maxTokens?: number
+      stop?: string[]
+      reasoningEffort?: unknown
+      system?: string
+      messages: Array<{ role: string; content: Array<{ type: string; text: string }> }>
+    }): AsyncIterable<{ type: string; text?: string }>
+  }>
+}
+
+interface DefaultModelLike {
+  provider: string
+  model: string
+}
+
+/** 调用 LLM 对单个文件生成分类/改名/标签建议（JSON）。 */
+async function classifyWithLlm(
+  llm: LlmLike | undefined,
+  defaultModel: DefaultModelLike | undefined,
+  source: string,
+  content: string,
+  categories: readonly string[],
+): Promise<{ source: string; category: string; name: string; tags: string[] }> {
+  if (llm === undefined || defaultModel === undefined) throw new Error('LLM 服务不可用')
+  const { provider, model } = defaultModel
+  const prepared = await llm.prepareCall({ provider, model, maxTokens: 500 })
+  const system = '你是文档分类助手。分析文档内容，只输出一个 JSON 对象（不要其他文字）：{"category": 分类名, "name": 规范的文件名(不带扩展名,中文), "tags": [1-3个简短标签]}。分类优先从可用分类中选；都不合适可以提一个新分类名。'
+  const prompt = `文档标题：${source}\n可用分类：${categories.join(' / ')}\n文档内容（节选）：\n${content}`
+  let text = ''
+  // stream 的 config 必须与 prepared.config（含 adapter 默认值）完全一致，否则 INVALID_PREPARED_CALL。
+  for await (const chunk of prepared.stream({
+    ...prepared.config,
+    system,
+    messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }],
+  })) {
+    if (chunk.type === 'text-delta' && chunk.text !== undefined) text += chunk.text
+  }
+  const jsonText = /\{[\s\S]*\}/.exec(text)?.[0] ?? text
+  const parsed = JSON.parse(jsonText) as { category?: unknown; name?: unknown; tags?: unknown }
+  return {
+    source,
+    category: typeof parsed.category === 'string' ? parsed.category : '',
+    name: typeof parsed.name === 'string' ? parsed.name : '',
+    tags: Array.isArray(parsed.tags) ? parsed.tags.map(String) : [],
+  }
 }
